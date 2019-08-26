@@ -19,7 +19,11 @@ class stocktwit():
         self._symbols = []
         self._read_twits_list = []
         index = pd.MultiIndex(levels=[[],[]], labels=[[],[]], names=['symbol', 'datetime'])
-        self._sentiment_df = pd.DataFrame(index=index, columns=['sentiment'])
+        df_cols = ['Followers_Weight', 'Following_Weight', 'Ideas_Weight', \
+                   'Likes_Weight', 'Official_Weight', 'Summed_Sentiment', 'Total_Sentiment', \
+                   'Bullish_Count', 'Bearish_Count', 'NLP_Bullish_Count', 'NLP_Bearish_Count', \
+                   'NLP_Neutral_Count', 'Total_Count']
+        self._sentiment_df = pd.DataFrame(index=index, columns=df_cols)
         self._analyzer = SentimentIntensityAnalyzer()
         
     def _stocktwit_api_symbol(self, symbol):
@@ -49,11 +53,13 @@ class stocktwit():
         if message['entities']['sentiment']:
             msg_sentiment = message['entities']['sentiment']['basic']
         else:
-            msg_sentiment = self._parse_msg_sentiment(message['body'])
+            msg_sentiment, msg_sent_flag = self._parse_msg_sentiment(message['body'])
         if msg_sentiment == 'Bullish':
             sent_score = 1
+            msg_sent_flag = "Bullish_Count"
         elif msg_sentiment == 'Bearish':
             sent_score = -1
+            msg_sent_flag = "Bearish_Count"
         else:
             sent_score = msg_sentiment
         user_info = message['user']
@@ -63,16 +69,21 @@ class stocktwit():
             if not self._sentiment_df.index.isin([(syms['symbol'], msg_time)]).any():
                 self._symbols.append(syms['symbol'])
                 self._sentiment_df.loc[(syms['symbol'], msg_time), :] = 0
-            self._sentiment_df.loc[(syms['symbol'], msg_time), :] += sent_score*weight
+            self._sentiment_df.loc[(syms['symbol'], msg_time), ['Summed_Sentiment', 'Total_Sentiment']] += [sent_score, sent_score*weight]
+            self._sentiment_df.loc[(syms['symbol'], msg_time), ['Followers_Weight', 'Following_Weight', 'Ideas_Weight', \
+                   'Likes_Weight', 'Official_Weight']] += self._weights
+            self._sentiment_df.loc[(syms['symbol'], msg_time), 'Total_Count'] += 1
+            self._sentiment_df.loc[(syms['symbol'], msg_time), msg_sent_flag] += 1
+            
             
     def _parse_msg_sentiment(self, message_data):
         vs = self._analyzer.polarity_scores(message_data)
         if vs['compound'] > 0.5:
-            return vs['compound']
+            return vs['compound'], 'NLP_Bullish_Count'
         elif vs['compound'] < -0.5:
-            return vs['compound']
+            return vs['compound'], 'NLP_Bearish_Count'
         else:
-            return 0
+            return 0, "NLP_Neutral_Count"
         
     def _parse_user_info(self, user_data):
         followers_weight = self._followers_weight(user_data['followers'])
@@ -80,9 +91,11 @@ class stocktwit():
         ideas_weight = self._ideas_weight(user_data['ideas'])
         likes_weight = self._likes_weight(user_data['like_count'])
         official_weight = self._official_weight(user_data['official'])
+        self._weights = [followers_weight, following_weight, \
+                         ideas_weight, likes_weight, official_weight]
         total_weight = np.sum(followers_weight+following_weight+ideas_weight+ \
-                    likes_weight+official_weight)
-        return total_weight/10
+                    likes_weight+official_weight)/10
+        return total_weight
     
     def _followers_weight(self, num_followers):
         if num_followers < 0:
