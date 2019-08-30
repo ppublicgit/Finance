@@ -68,7 +68,7 @@ def kelly_leverages(securities, start_date, end_date, risk_free_rate=0.04):
     return return_dict
 
 if __name__ == '__main__':
-    secs = ['OIH', 'RKH', 'RTH']#['SPY', 'GE', 'F']
+    secs = ['OIH', 'RKH', 'RTH']  #['SPY', 'GE', 'F']
     risk_free_rate = 0.04
     start = '2000-4-26'
     end = '2007-4-9'
