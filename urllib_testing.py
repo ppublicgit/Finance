@@ -2,7 +2,7 @@
 """
 Created on Fri Aug 23 09:44:07 2019
 
-@author: PAbers
+@author: p
 """
 import urllib.request
 from bs4 import BeautifulSoup
